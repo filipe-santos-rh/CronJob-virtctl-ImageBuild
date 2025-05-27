@@ -1,0 +1,71 @@
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  labels:
+    kubernetes.io/metadata.name: image-import
+  name: image-import
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: os-image-import-script
+  namespace: image-import
+data:
+  import-script.sh: |
+    #!/bin/sh
+    TIMESTAMP=$(date +%Y-%m-%d)
+    IMAGES_DIR_NEW=/demo/data/new
+    IMAGES_DIR_IMPORTED=/demo/data/imported
+    STORAGE_CLASS=
+    DV_SIZE=20G
+    PROJECT_NAME=image-import
+    echo "List the content of new images"
+    ls ${IMAGES_DIR_NEW} > /tmp/images_list
+    LINECOUNT=`wc -l /tmp/images_list | awk '{print $1}'`
+    if [ $LINECOUNT -gt 0 ]; then
+        cat /tmp/images_list
+        oc project ${PROJECT_NAME}
+        for i in $(cat /tmp/images_list) ; do virtctl image-upload dv ${i%.*}-dv --size=${DV_SIZE} --storage-class=${STORAGE_CLASS} --image-path=${IMAGES_DIR_NEW}/$i; done
+        oc get dv -n ${PROJECT_NAME}
+        mv ${IMAGES_DIR_NEW}/* ${IMAGES_DIR_IMPORTED}/
+    else
+        echo "No new images found, nothing to do!"
+    fi
+---
+kind: CronJob
+apiVersion: batch/v1
+metadata:
+  name: ocp4-os-image-import
+  namespace: image-import
+spec:
+  schedule: '@weekly'
+  concurrencyPolicy: Allow
+  suspend: false
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          volumes:
+          - name: script
+            configMap:
+              name: ocp4-os-image-import-script
+          - name: nfs-data
+            persistentVolumeClaim:
+              claimName: nfs-pvc
+          containers:
+            - name: os-image-import
+              image: registry.redhat.io/web-terminal/web-terminal-tooling-rhel8
+              volumeMounts:
+                - name: script
+                  mountPath: /usr/os-image-import
+                - name: nfs-data
+                  mountPath: /demo/data
+              command:
+              - /bin/sh
+              - /usr/os-image-import/import-script.sh
+              imagePullPolicy: IfNotPresent
+          restartPolicy: OnFailure
+          terminationGracePeriodSeconds: 30
+          dnsPolicy: ClusterFirst
+          securityContext: {}
+          schedulerName: default-scheduler
