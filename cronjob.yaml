@@ -1,8 +1,6 @@
-apiVersion: project.openshift.io/v1
-kind: Project
+apiVersion: v1
+kind: Namespace
 metadata:
-  labels:
-    kubernetes.io/metadata.name: image-import
   name: image-import
 ---
 kind: ConfigMap
@@ -13,10 +11,9 @@ metadata:
 data:
   import-script.sh: |
     #!/bin/sh
-    TIMESTAMP=$(date +%Y-%m-%d)
     IMAGES_DIR_NEW=/demo/data/new
     IMAGES_DIR_IMPORTED=/demo/data/imported
-    STORAGE_CLASS=
+    STORAGE_CLASS=vm-storageclass
     DV_SIZE=20G
     PROJECT_NAME=image-import
     echo "List the content of new images"
@@ -25,17 +22,37 @@ data:
     if [ $LINECOUNT -gt 0 ]; then
         cat /tmp/images_list
         oc project ${PROJECT_NAME}
-        for i in $(cat /tmp/images_list) ; do virtctl image-upload dv ${i%.*}-dv --size=${DV_SIZE} --storage-class=${STORAGE_CLASS} --image-path=${IMAGES_DIR_NEW}/$i; done
+        for i in $(cat /tmp/images_list | tr '[:upper:]' '[:lower:]') ; do echo virtctl image-upload dv ${i%.*}-dv --size=${DV_SIZE} --storage-class=${STORAGE_CLASS} --image-path=${IMAGES_DIR_NEW}/$i; done
         oc get dv -n ${PROJECT_NAME}
         mv ${IMAGES_DIR_NEW}/* ${IMAGES_DIR_IMPORTED}/
     else
         echo "No new images found, nothing to do!"
     fi
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: image-import-sa
+  namespace: image-import
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: image-import-admin
+  namespace: image-import
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+- kind: ServiceAccount
+  name: image-import-sa
+  namespace: image-import
+---
 kind: CronJob
 apiVersion: batch/v1
 metadata:
-  name: ocp4-os-image-import
+  name: os-image-import
   namespace: image-import
 spec:
   schedule: '@weekly'
@@ -48,13 +65,14 @@ spec:
           volumes:
           - name: script
             configMap:
-              name: ocp4-os-image-import-script
+              name: os-image-import-script
           - name: nfs-data
             persistentVolumeClaim:
               claimName: nfs-pvc
+          serviceAccountName: image-import-sa
           containers:
             - name: os-image-import
-              image: registry.redhat.io/web-terminal/web-terminal-tooling-rhel8
+              image: 'registry.redhat.io/web-terminal/web-terminal-tooling-rhel9@sha256:56d0e658242cc58de43792b658cad00978bb26acca8f8c52f9a6efaae0319306'
               volumeMounts:
                 - name: script
                   mountPath: /usr/os-image-import
