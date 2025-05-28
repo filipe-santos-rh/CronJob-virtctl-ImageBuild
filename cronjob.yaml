@@ -14,7 +14,7 @@ data:
     IMAGES_DIR_NEW=/demo/data/new
     IMAGES_DIR_IMPORTED=/demo/data/imported
     STORAGE_CLASS=vm-storageclass
-    DV_SIZE=20G
+    DV_SIZE=20Gi
     PROJECT_NAME=image-import
     echo "List the content of new images"
     ls ${IMAGES_DIR_NEW} > /tmp/images_list
@@ -22,7 +22,7 @@ data:
     if [ $LINECOUNT -gt 0 ]; then
         cat /tmp/images_list
         oc project ${PROJECT_NAME}
-        for i in $(cat /tmp/images_list | tr '[:upper:]' '[:lower:]') ; do echo virtctl image-upload dv ${i%.*}-dv --size=${DV_SIZE} --storage-class=${STORAGE_CLASS} --image-path=${IMAGES_DIR_NEW}/$i; done
+        for i in $(cat /tmp/images_list) ; do lower=$(echo $i | tr '[:upper:]' '[:lower:]') ; virtctl image-upload dv ${lower}-dv --size=${DV_SIZE} --storage-class=${STORAGE_CLASS} --image-path=${IMAGES_DIR_NEW}/$i --force-bind --insecure; done
         oc get dv -n ${PROJECT_NAME}
         mv ${IMAGES_DIR_NEW}/* ${IMAGES_DIR_IMPORTED}/
     else
