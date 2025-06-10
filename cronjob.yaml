@@ -22,8 +22,31 @@ data:
     if [ $LINECOUNT -gt 0 ]; then
         cat /tmp/images_list
         oc project ${PROJECT_NAME}
-        for i in $(cat /tmp/images_list) ; do lower=$(echo $i | tr '[:upper:]' '[:lower:]') ; virtctl image-upload dv ${lower}-dv --size=${DV_SIZE} --storage-class=${STORAGE_CLASS} --image-path=${IMAGES_DIR_NEW}/$i --force-bind --insecure; done
+        for i in $(cat /tmp/images_list) ; do lower=$(echo $i | tr '[:upper:]' '[:lower:]') ; virtctl image-upload dv ${lower%.*}-dv --size=${DV_SIZE} --storage-class=${STORAGE_CLASS} --image-path=${IMAGES_DIR_NEW}/$i --force-bind --insecure; done
         oc get dv -n ${PROJECT_NAME}
+        mkdir -p /tmp/image-datasources
+        for i in $(cat /tmp/images_list)
+          do lower=$(echo $i | tr '[:upper:]' '[:lower:]')
+        cat << EOF >> /tmp/image-datasources/ds_${lower}.yaml
+        appiVersion: cdi.kubevirt.io/v1beta1
+        kind: DataSource
+        metadata:
+          annotation:
+            description: ${lower%.*}-ros-sda-template
+          name: ${lower%.*}-vm
+          namespace: ${PROJECT_NAME}
+          labels:
+            current-release: yes
+            instancetype.kubevirt.io/default-preference: rhel-8
+            os-type: ${lower%.*}-vm
+        spec:
+          source:
+            pvc:
+              Name: ${lower%.*}-dv
+              namespace: ${PROJECT_NAME}
+    EOF
+        done
+        oc create -f /tmp/image-datasources/
         mv ${IMAGES_DIR_NEW}/* ${IMAGES_DIR_IMPORTED}/
     else
         echo "No new images found, nothing to do!"
