@@ -27,7 +27,7 @@ data:
         mkdir -p /tmp/image-datasources
         for i in $(cat /tmp/images_list)
           do lower=$(echo $i | tr '[:upper:]' '[:lower:]')
-        cat << EOF >> /tmp/image-datasources/ds_${lower}.yaml
+        cat << EOF >> /tmp/image-datasources/ds_${lower%.*}.yaml
         appiVersion: cdi.kubevirt.io/v1beta1
         kind: DataSource
         metadata:
