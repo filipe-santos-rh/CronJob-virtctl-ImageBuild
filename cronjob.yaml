@@ -42,7 +42,7 @@ data:
         spec:
           source:
             pvc:
-              Name: ${lower%.*}-dv
+              name: ${lower%.*}-dv
               namespace: ${PROJECT_NAME}
     EOF
         done
