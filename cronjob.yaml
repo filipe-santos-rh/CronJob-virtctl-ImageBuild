@@ -13,6 +13,7 @@ data:
     #!/bin/sh
     IMAGES_DIR_NEW=/demo/data/new
     IMAGES_DIR_IMPORTED=/demo/data/imported
+    IMAGES_DIR_OLD=/demo/data/old
     STORAGE_CLASS=vm-storageclass
     DV_SIZE=20Gi
     PROJECT_NAME=image-import
@@ -46,7 +47,13 @@ data:
               namespace: ${PROJECT_NAME}
     EOF
         done
+        echo "Removing the label current-release from existing DataSource"
+        for i in $(oc get DataSource -o name -n ${PROJECT_NAME}); do echo $i ; oc label $i -n ${PROJECT_NAME} current-release=yes- ; done
+        echo "current-release removed from all previous DataSource"
         oc create -f /tmp/image-datasources/
+        mkdir -p ${IMAGES_DIR_OLD}
+        rm -f ${IMAGES_DIR_OLD}/*
+        mv ${IMAGES_DIR_IMPORTED}/* ${IMAGES_DIR_OLD}/
         mv ${IMAGES_DIR_NEW}/* ${IMAGES_DIR_IMPORTED}/
     else
         echo "No new images found, nothing to do!"
